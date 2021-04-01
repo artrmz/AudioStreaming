@@ -6,50 +6,39 @@
 import AVFoundation
 
 protocol AudioEntryProviding {
-    func provideAudioEntry(url: URL, headers: [String: String]) -> AudioEntry
-    func provideAudioEntry(url: URL) -> AudioEntry
+    func provideAudioEntry(url: URL) -> AudioEntry?
 }
 
 final class AudioEntryProvider: AudioEntryProviding {
-    private let networkingClient: NetworkingClient
     private let underlyingQueue: DispatchQueue
     private let outputAudioFormat: AVAudioFormat
 
-    init(networkingClient: NetworkingClient,
-         underlyingQueue: DispatchQueue,
+    init(underlyingQueue: DispatchQueue,
          outputAudioFormat: AVAudioFormat)
     {
-        self.networkingClient = networkingClient
         self.underlyingQueue = underlyingQueue
         self.outputAudioFormat = outputAudioFormat
     }
 
-    func provideAudioEntry(url: URL, headers: [String: String]) -> AudioEntry {
-        let source = self.source(for: url, headers: headers)
+    func provideAudioEntry(url: URL) -> AudioEntry? {
+        guard let source = self.source(for: url) else {
+            return nil
+        }
+        
         return AudioEntry(source: source,
                           entryId: AudioEntryId(id: url.absoluteString),
                           outputAudioFormat: outputAudioFormat)
-    }
-
-    func provideAudioEntry(url: URL) -> AudioEntry {
-        provideAudioEntry(url: url, headers: [:])
-    }
-
-    func provideAudioSource(url: URL, headers: [String: String]) -> AudioStreamSource {
-        RemoteAudioSource(networking: networkingClient,
-                          url: url,
-                          underlyingQueue: underlyingQueue,
-                          httpHeaders: headers)
     }
 
     func provideFileAudioSource(url: URL) -> CoreAudioStreamSource {
         FileAudioSource(url: url, underlyingQueue: underlyingQueue)
     }
 
-    func source(for url: URL, headers: [String: String]) -> CoreAudioStreamSource {
-        guard !url.isFileURL else {
-            return provideFileAudioSource(url: url)
+    func source(for url: URL) -> CoreAudioStreamSource? {
+        guard url.isFileURL else {
+            return nil
         }
-        return provideAudioSource(url: url, headers: headers)
+        
+        return provideFileAudioSource(url: url)
     }
 }

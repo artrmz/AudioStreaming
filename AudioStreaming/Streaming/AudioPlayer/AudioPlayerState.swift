@@ -79,7 +79,6 @@ public enum AudioPlayerError: LocalizedError, Equatable {
     case audioSystemError(AudioSystemError)
     case codecError
     case dataNotFound
-    case networkError(NetworkError)
     case other
 
     public var errorDescription: String? {
@@ -92,8 +91,6 @@ public enum AudioPlayerError: LocalizedError, Equatable {
             return "Codec error while parsing data packets"
         case .dataNotFound:
             return "No data supplied from network stream"
-        case let .networkError(error):
-            return error.localizedDescription
         case .other:
             return "Audio Player error"
         }

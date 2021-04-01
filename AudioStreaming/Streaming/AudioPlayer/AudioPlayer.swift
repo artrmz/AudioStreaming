@@ -134,8 +134,7 @@ public final class AudioPlayer {
         sourceQueue = DispatchQueue(label: "source.queue", qos: .userInitiated)
         audioReadSource = DispatchTimerSource(interval: .milliseconds(200), queue: sourceQueue)
 
-        entryProvider = AudioEntryProvider(networkingClient: NetworkingClient(),
-                                           underlyingQueue: sourceQueue,
+        entryProvider = AudioEntryProvider(underlyingQueue: sourceQueue,
                                            outputAudioFormat: outputAudioFormat)
 
         fileStreamProcessor = AudioFileStreamProcessor(playerContext: playerContext,
@@ -164,15 +163,9 @@ public final class AudioPlayer {
     ///
     /// - parameter url: A `URL` specifying the audio context to be played
     public func play(url: URL) {
-        play(url: url, headers: [:])
-    }
-
-    /// Starts the audio playback for the given URL
-    ///
-    /// - parameter url: A `URL` specifying the audio context to be played.
-    /// - parameter headers: A `Dictionary` specifying any additional headers to be pass to the network request.
-    public func play(url: URL, headers: [String: String]) {
-        let audioEntry = entryProvider.provideAudioEntry(url: url, headers: headers)
+        guard let audioEntry = entryProvider.provideAudioEntry(url: url) else {
+            return
+        }
         audioEntry.delegate = self
 
         checkRenderWaitingAndNotifyIfNeeded()
@@ -198,23 +191,10 @@ public final class AudioPlayer {
     ///
     /// - Parameter url: A `URL` specifying the audio content to be played.
     public func queue(url: URL) {
-        queue(url: url, headers: [:])
-    }
-
-    /// Queues the specified URLs
-    ///
-    /// - Parameter url: A `URL` specifying the audio content to be played.
-    public func queue(urls: [URL]) {
-        queue(urls: urls, headers: [:])
-    }
-
-    /// Queues the specified URL
-    ///
-    /// - Parameter url: A `URL` specifying the audio content to be played.
-    /// - parameter headers: A `Dictionary` specifying any additional headers to be pass to the network request.
-    public func queue(url: URL, headers: [String: String]) {
         serializationQueue.sync {
-            let audioEntry = entryProvider.provideAudioEntry(url: url, headers: headers)
+            guard let audioEntry = entryProvider.provideAudioEntry(url: url) else {
+                return
+            }
             audioEntry.delegate = self
             entriesQueue.enqueue(item: audioEntry, type: .upcoming)
         }
@@ -226,12 +206,13 @@ public final class AudioPlayer {
 
     /// Queues the specified URLs
     ///
-    /// - Parameter url: A array of `URL`s specifying the audio content to be played.
-    /// - parameter headers: A `Dictionary` specifying any additional headers to be pass to the network request.
-    public func queue(urls: [URL], headers: [String: String]) {
+    /// - Parameter url: A `URL` specifying the audio content to be played.
+    public func queue(urls: [URL]) {
         serializationQueue.sync {
             for url in urls {
-                let audioEntry = entryProvider.provideAudioEntry(url: url, headers: headers)
+                guard let audioEntry = entryProvider.provideAudioEntry(url: url) else {
+                    return
+                }
                 audioEntry.delegate = self
                 entriesQueue.enqueue(item: audioEntry, type: .upcoming)
             }
@@ -768,7 +749,7 @@ extension AudioPlayer: AudioStreamSourceDelegate {
 
     func errorOccured(source: CoreAudioStreamSource, error: Error) {
         guard let entry = playerContext.audioReadingEntry, entry.has(same: source) else { return }
-        raiseUnxpected(error: .networkError(.failure(error)))
+        raiseUnxpected(error: .audioSystemError(.engineFailure))
     }
 
     func endOfFileOccured(source: CoreAudioStreamSource) {
